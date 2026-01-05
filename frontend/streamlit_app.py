@@ -25,6 +25,11 @@ status_filter = st.sidebar.selectbox(
     index=0
 )
 
+def update_application(app_id: int, payload: dict):
+    resp = requests.patch(f"{API_URL}/applications/{app_id}", json=payload, timeout=10)
+    resp.raise_for_status()
+    return resp.json()
+
 # Add form
 st.subheader("Add an application")
 
@@ -84,8 +89,44 @@ if status_filter != "All":
 if not data:
     st.info("No applications to display.")
 else:
+    display_rows = []
+    for row in data:
+        display_rows.append({
+            "Company": row["company"],
+            "Role": row["role_title"],
+            "Location": row["location"],
+            "Date Applied": row["date_applied"],
+            "Status": row["status"],
+            "Tags": row["tags"],
+            "Notes": row["notes"], 
+        })
+
     st.dataframe(
-        data, 
+        display_rows,
         use_container_width=True,
         hide_index=True
     )
+
+st.subheader("Update an application")
+
+if data:
+    label_to_id = {
+        f"{row['company']} | {row['role_title']} | id {row['id']}": row["id"]
+        for row in data
+    }
+    selected_label = st.selectbox("Select", options=list(label_to_id.keys()))
+    selected_id = label_to_id[selected_label]
+
+    new_status = st.selectbox(
+        "New status", 
+        ["Interested", "Applied", "OA", "Interview", "Offer", "Rejected", "Ghosted"]
+    )
+    new_notes = st.text_area("Update notes", placeholder="Add or replace notes")
+
+    if st.button("Apply update"):
+        try:
+            update_application(selected_id, {"status": new_status, "notes": new_notes.strip() or None})
+            st.success("Updated")
+            st.rerun()
+        except requests.RequestException as e:
+            st.error(f"Update failed: {e}")
